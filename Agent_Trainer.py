@@ -1,21 +1,20 @@
 # -*-coding: utf-8 -*-
 # written by chenkeyu
 
+
 import math
 import os
-import random
 import time
-import numpy as np
 import carla
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from model import DQNAgent
+
 
 
 class AgentTrainer:
     def __init__(self,
                  agent,
-                 episodes,
+                 episodes=1000,
                  save_episodes=100,
                  target_update_episodes=10,
                  model_name="MobileNet_v3",
@@ -111,32 +110,3 @@ class AgentTrainer:
                     'optimizer_dict': self.agent.optimizer.state_dict(),
                     'model_dict': self.agent.q_network.state_dict()},
                    path)
-
-
-def main():
-    # predefined parameters
-    episodes = 1000
-    save_episodes = 50
-    target_update_episodes = 10
-    show_cam = True
-    model_name = "MobileNet_v3"
-    batch_size = 8
-    im_width = 320
-    im_height = 240
-    throttle_list = [0.2, 0.4, 0.6, 0.8, 1]
-    steer_list = [0, 1, 2]
-    pretrain_path = None
-    # pretrain_path = 'pretrained_models/2023-05-14_MobileNet_v3_50.pth'
-
-    # Create a DQNAgent and start training
-    agent = DQNAgent(im_width, im_height, throttle_list=throttle_list, steer_list=steer_list, show_cam=show_cam,
-                     batch_size=batch_size, pretrain_path=pretrain_path)
-    trainer = AgentTrainer(
-        agent, episodes, save_episodes, target_update_episodes, model_name=model_name
-    )
-    print("start training !!")
-    trainer.train()
-
-
-if __name__ == '__main__':
-    main()

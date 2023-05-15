@@ -1,3 +1,5 @@
+$ cat .gitignore
 *.pt
-
-__pycache__/model.cpython-37.pyc
+/.idea/
+*/__pycache__
+/logs/
