@@ -17,6 +17,7 @@ class DQN(nn.Module):
         super(DQN, self).__init__()
         self.input_channel = input_channel
         self.action_dim = action_dim
+        # the action dimension is one
         self.mobilnet = models.mobilenet_v3_small(num_classes=self.action_dim)
 
     def forward(self, x):
@@ -34,6 +35,8 @@ class ReplayBuffer:
 
     def sample(self, batch_size):
         state, action, reward, next_state, done = zip(*random.sample(self.buffer, batch_size))
+        # state, next_state -> tuple:(np[H, W, 3],np[H, W, 3],np[H, W, 3]...)
+        # action, reward, done -> tuple:(int,int,int)
         return state, action, reward, next_state, done
 
     def __len__(self):
@@ -127,39 +130,50 @@ class DQNAgent:
         # state [batch_size, 3, H, W]
         action = torch.LongTensor(action).unsqueeze(1).to(self.device)
         # action [batch_size, 1]
-        reward = torch.FloatTensor(reward).unsqueeze(1).to(self.device)
+        reward = torch.FloatTensor(reward).to(self.device)
+        # reward [batch_size]
         next_state = torch.FloatTensor(np.array(next_state)).permute(0, 3, 1, 2).to(self.device)
         # next_state [batch_size, 3, H, W]
-        done = torch.FloatTensor(done).unsqueeze(1).to(self.device)
+        done = torch.FloatTensor(done).to(self.device)
+        # done [batch_size]
 
         # transform the unify index of throttle and steer to their individual one
+        # throttle_action [batch_size, 1]
         throttle_action = torch.div(action, self.steer_dim, rounding_mode="floor")  # The action index of throttle
+        # steer_action [batch_size, 1]
         steer_action = action % self.steer_dim  # the remainder
 
         # seperate the unify q_values to their individual one using their corresponding index
+        # q_values [batch_size, self.throttle_dim + self.steer_dim]
         q_values = self.q_network(state)
+        # throttle_q_value [batch_size, self.throttle_dim]
         throttle_q_values = q_values[:, :self.throttle_dim]
+        # steer_q_value [batch_size, self.steer_dim]
         steer_q_values = q_values[:, self.throttle_dim:]
 
         # normalize the throttle_q_values
+        # throttle_q_value [batch_size, self.throttle_dim]
         throttle_q_values = F.softmax(throttle_q_values, dim=-1)
-        throttle_q_values = throttle_q_values.gather(1, throttle_action).squeeze(1)
-        steer_q_values = steer_q_values.gather(1, steer_action).squeeze(1)
+        # throttle_action [batch_size, 1]
+        throttle_q_values = throttle_q_values.gather(1, throttle_action).squeeze(1)  # throttle_q_value [batch_size]
+        steer_q_values = steer_q_values.gather(1, steer_action).squeeze(1)  # steer_q_value [batch_size]
 
         # current_q_values [batch_size]
         current_q_values = throttle_q_values + steer_q_values
 
         # compute the target q values
-        next_q_values = self.target_network(next_state)
-        next_throttle_q_values = next_q_values[:, :self.throttle_dim]
-        next_steer_q_values = next_q_values[:, self.throttle_dim:]
-        next_throttle_actions = next_throttle_q_values.max(-1)[1]
-        next_steer_actions = next_steer_q_values.max(-1)[1]
-        next_q_values = next_throttle_q_values.gather(1, next_throttle_actions.unsqueeze(1)).squeeze(0) + \
-                        next_steer_q_values.gather(1, next_steer_actions.unsqueeze(1)).squeeze(0)
+        next_q_values = self.target_network(next_state)  # next_q_values [batch_size,self.throttle_dim + self.steer_dim]
+        next_throttle_q_values = next_q_values[:, :self.throttle_dim]  # next_throttle_q_value [batch_size, self.throttle_dim]
+        next_steer_q_values = next_q_values[:, self.throttle_dim:]  # next_steer_q_value [batch_size, self.steer_dim]
+        # return the max value index in self.throttle_dim
+        next_throttle_actions = next_throttle_q_values.max(-1)[1]  # [batch_size]
+        # return the max value index in self.steer_dim
+        next_steer_actions = next_steer_q_values.max(-1)[1]  # [batch_size]
+        next_q_values = next_throttle_q_values.gather(1, next_throttle_actions.unsqueeze(1)).squeeze(1) + \
+                        next_steer_q_values.gather(1, next_steer_actions.unsqueeze(1)).squeeze(1)
 
-        # target_q_values [batch_size]
-        target_q_values = (reward + self.gamma * next_q_values * (1 - done)).squeeze(1)
+        # compute the target_q_values
+        target_q_values = (reward + self.gamma * next_q_values * (1 - done))  # target_q_values [batch_size]
 
         # compute the loss of the q_network
         loss = F.mse_loss(current_q_values, target_q_values.detach())

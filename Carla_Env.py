@@ -17,6 +17,7 @@ class CarEnv:
                  throttle_list,
                  steer_list,
                  desired_speed=40,
+                 second_per_episode=15,
                  show_cam=True):
         # Create a Carla client and connect to the Carla server
         self.client = carla.Client("localhost", 2000)
@@ -47,6 +48,9 @@ class CarEnv:
         self.throttle_list = throttle_list
         self.steer_list = steer_list
 
+        # the longest duration time of one episode
+        self.second_per_episode = second_per_episode
+
     def reset(self):
         self.actor_list = []
         self.sensor_list = []
@@ -63,9 +67,9 @@ class CarEnv:
         self.vehicle.set_simulate_physics(True)
         self.actor_list.append(self.vehicle)
 
-        # when init a car, first pause 2s
+        # sleep to get things started and to not detect a collision when the car spawns/falls from sky.
         self.vehicle.apply_control(carla.VehicleControl(throttle=0.0, brake=0.0))
-        time.sleep(2)
+        time.sleep(4)
 
         # create a sensor to get the rgb image
         self.rgb_cam = self.world.get_blueprint_library().find('sensor.camera.rgb')
@@ -94,6 +98,10 @@ class CarEnv:
 
         while self.front_camera is None:
             time.sleep(0.01)
+
+        # record the starting time of this episode
+        self.episode_start = time.time()
+        self.vehicle.apply_control(carla.VehicleControl(brake=0.0, throttle=0.0))
         # self.front_camera [H ,W, 3]
         return self.front_camera
 
@@ -130,6 +138,10 @@ class CarEnv:
         else:
             col_flag = 0
             done = False
+
+        # prevent the car is always circling
+        if self.episode_start + self.second_per_episode < time.time():
+            done = True
 
         # over speed flag
         if kmh > self.desired_speed:

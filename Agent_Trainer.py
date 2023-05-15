@@ -51,8 +51,9 @@ class AgentTrainer:
                 done = False
                 total_reward = 0
                 while not done:
+                    # state numpy[H, W, 3]
                     tensor_state = torch.FloatTensor(state).unsqueeze(0).permute(0, 3, 1, 2)
-                    # tensor_state [1, H, W, 3]
+                    # tensor_state [1, 3, H, W]
                     action = self.agent.act(tensor_state)
                     next_state, reward, done = self.agent.env.step(action, self.agent.steer_dim)
                     total_reward += reward

@@ -14,8 +14,8 @@ def get_parser():
     parser.add_argument("--save_episodes", default=50, type=int)
     # target network undate per episodes
     parser.add_argument("--target_update_episodes", default=10, type=int)
-    # whether to show cam
-    parser.add_argument("--show_cam", default="True", type=str)
+    # whether to show cam, if need to show the cam, the add the "--show_cam" in command
+    parser.add_argument("--show_cam", action='store_true')
     # DQN network name
     parser.add_argument("--model_name", default="MobileNet_v3", type=str)
     # batch_size
@@ -36,7 +36,6 @@ def get_parser():
 def main():
     parser = get_parser()
     args = parser.parse_args()
-
     # Create a DQNAgent and start training
     agent = DQNAgent(im_width=args.im_width, im_height=args.im_height,
                      throttle_list=args.throttle_list, steer_list=args.steer_list,
